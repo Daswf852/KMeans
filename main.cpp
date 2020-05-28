@@ -119,14 +119,14 @@ int main(int, char **) {
     std::vector<color> colorArray(pointCount);
     for (auto it = colorArray.begin(); it != colorArray.end(); it++) {
         *it = {
-            dist(gen),
-            dist(gen),
-            dist(gen),
-            dist(gen),
+            (unsigned short)dist(gen),
+            (unsigned short)dist(gen),
+            (unsigned short)dist(gen),
+            (unsigned short)dist(gen),
         };
     }
 
-    benchPoints = Point::GeneratePoints<color>(4, colorArray, [](const color &b) -> Point {
+    benchPoints = Point::GeneratePoints<color>(colorArray, [](const color &b) -> Point {
         return Point({(double)b.r, (double)b.g, (double)b.b, (double)b.a});
     });
 

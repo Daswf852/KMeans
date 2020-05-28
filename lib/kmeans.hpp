@@ -10,6 +10,8 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 
 #pragma once
 
+#define _THREADED
+
 #include <cfloat>
 #include <cmath>
 #include <functional>
@@ -20,6 +22,10 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+#ifdef _THREADED
+#include <thread>
+#endif
 
 class DifferentDimensionsException : public std::exception {
     public:
@@ -84,17 +90,27 @@ class Point {
 
         //GeneratePoints generates Points from a vector of Ts
         //The description on how to generate a Point from a T is given with getPointFunction
-        //Type C is any type that supports C::iterator, C::begin(), and C::end()
         template <typename T, typename C>
-        static std::vector<Point> GeneratePoints(int expectedDimensions, const C &values, std::function<Point(const T&)> getPointFunction) {
+        static std::vector<Point> GeneratePoints(const C &values, std::function<Point(const T&)> getPointFunction) {
+            if (values.size() <= 0) throw CantDeduceDimensionsException();
+
             std::vector<Point> retVec;
             for (const T &v : values) {
                 Point temp = getPointFunction(v);
-                if (temp.coordinates.size() != expectedDimensions) {
+                /*if (temp.coordinates.size() != expectedDimensions) {
                     throw DifferentDimensionsException(expectedDimensions, temp.coordinates.size());
-                }
-                retVec.push_back(temp);
+                }*/
+                retVec.push_back(getPointFunction(v));
             };
+            
+            try {
+                GetDimensions(retVec);
+            } catch (DifferentDimensionsException ex) {
+                throw ex;
+            } catch (CantDeduceDimensionsException ex) {
+                throw ex;
+            }
+
             return retVec;
         }
 
@@ -115,6 +131,10 @@ class Point {
         //EuclideanDistance calculates the euclidean distance between 2 points
         //Throws DifferentDimensionsException if the 2 points have different dimensions
         //Far slower than ManhattanDistance
+        //Decided to use this over manhattan distance after reading https://pdfs.semanticscholar.org/a630/316f9c98839098747007753a9bb6d05f752e.pdf
+        ///TODO: make distance algorithm optional
+        ///TODO: make user-suppliable distance functions
+        ///Maybe TODO: switch to big numbers
         static double EuclideanDistance(const Point &p0, const Point &p1) {
             size_t p0size = p0.coordinates.size();
             size_t p1size = p1.coordinates.size();
@@ -135,7 +155,7 @@ class Point {
         //Throws DifferentDimensionsException if the 2 points have different dimensions
         //Is faster than EuclideanDistance
         //Might overflow, a lot of times over
-        //Maybe TODO: switch to big numbers
+        ///Maybe TODO: switch to big numbers
         static double ManhattanDistance(const Point &p0, const Point &p1) {
             size_t p0size = p0.coordinates.size();
             size_t p1size = p1.coordinates.size();
@@ -187,9 +207,6 @@ class KMeans {
         ~KMeans() {};
 
         inline void ResetMeans() {
-            /*for (size_t i = 0; i < meanCount; i++) {
-                std::fill(means.at(i).coordinates.begin(), means.at(i).coordinates.end(), 0.f);
-            }*/
             for (std::vector<Point>::iterator it = means.begin(); it != means.end(); it++) {
                 std::fill((*it).coordinates.begin(), (*it).coordinates.end(), 0.f);
             }
@@ -230,56 +247,14 @@ class KMeans {
             return averageDistance;
         }
 
+        //JustIterate iterates the means and clusters but nothing more
+        //Useful for speed if you want to iterate for a set number of times
         void JustIterate() {
             CalculateNewMeans();
             CalculatePointsClusters();
         }
 
-        //CalculateNewMeans calculates new means based on clusterIDs of the Points
-        //Don't call this, call Iterate() instead
-        void CalculateNewMeans() {
-            ResetMeans();
-            std::vector<int> runningCounts(meanCount);
-            std::fill(runningCounts.begin(), runningCounts.end(), 0);
-
-            for (const Point &p : points) {
-                if (p.coordinates.size() != dimensions) throw DifferentDimensionsException(dimensions, p.coordinates.size());
-                if (p.clusterID >= meanCount) throw std::out_of_range("p.clusterID >= meanCount: "+std::to_string(p.clusterID)+", "+std::to_string(meanCount));
-
-                for (size_t dim = 0; dim < dimensions; dim++) {
-                    means[p.clusterID].coordinates[dim] = Point::RunningAverage(means[p.clusterID].coordinates[dim], p.coordinates[dim], runningCounts[p.clusterID]);
-                }
-                
-                ++runningCounts[p.clusterID];
-            }
-        }
-
-        //CalculatePointsClusters calculates the ClusterID values of the object's Points based on the means
-        //Don't call this, call Iterate() instead
-        void CalculatePointsClusters() {
-            std::vector<double> distances(meanCount);
-            for (std::vector<Point>::iterator p = points.begin(); p != points.end(); p++) {
-                std::vector<double>::iterator distIt = distances.begin();
-
-                for (const Point &m : means) {
-                    *distIt = Point::EuclideanDistance(*p, m);
-                    ++distIt;
-                }
-
-                int closestClusterID = -1;
-                double closestMeanDistance = DBL_MAX;
-                for (size_t i = 0; i < distances.size(); i++) {
-                    if (closestMeanDistance >= distances[i]) {
-                        closestMeanDistance = distances[i];
-                        closestClusterID = i;
-                    }
-                }
-
-                (*p).clusterID = closestClusterID;
-            }
-        }
-
-        //RandomiseMeans randomises the current geometric means
+        //RandomiseMeans randomises the current means
         void RandomiseMeans() {
             std::random_device rd;
             std::mt19937 gen(rd());
@@ -340,7 +315,80 @@ class KMeans {
             return means;
         }
 
+        void SetThreadCount(size_t threadCount) {
+            this->threadCount = threadCount;
+        }
+
+        void JustIterateParallel() {
+
+        }
+
     private:
+        //CalculateNewMeans calculates new means based on clusterIDs of the Points
+        void CalculateNewMeans() {
+            ResetMeans();
+            std::vector<int> runningCounts(meanCount);
+            std::fill(runningCounts.begin(), runningCounts.end(), 0);
+
+            for (const Point &p : points) {
+                if (p.coordinates.size() != dimensions) throw DifferentDimensionsException(dimensions, p.coordinates.size());
+                if (p.clusterID >= meanCount) throw std::out_of_range("p.clusterID >= meanCount: "+std::to_string(p.clusterID)+", "+std::to_string(meanCount));
+
+                for (size_t dim = 0; dim < dimensions; dim++) {
+                    means[p.clusterID].coordinates[dim] = Point::RunningAverage(means[p.clusterID].coordinates[dim], p.coordinates[dim], runningCounts[p.clusterID]);
+                }
+                
+                ++runningCounts[p.clusterID];
+            }
+        }
+
+        //CalculatePointsClusters calculates the ClusterID values of the object's Points based on the means
+        void CalculatePointsClusters() {
+            std::vector<double> distances(meanCount);
+            for (std::vector<Point>::iterator p = points.begin(); p != points.end(); p++) {
+                std::vector<double>::iterator distIt = distances.begin();
+
+                for (const Point &m : means) {
+                    *distIt = Point::EuclideanDistance(*p, m);
+                    ++distIt;
+                }
+
+                int closestClusterID = -1;
+                double closestMeanDistance = DBL_MAX;
+                for (size_t i = 0; i < distances.size(); i++) {
+                    if (closestMeanDistance >= distances[i]) {
+                        closestMeanDistance = distances[i];
+                        closestClusterID = i;
+                    }
+                }
+
+                (*p).clusterID = closestClusterID;
+            }
+        }
+
+        //NYI
+        void CalculateNewMeansParallel() {
+        }
+
+        //NYI
+        void CalculateNewMeansParallelFunc(size_t threadID) {
+
+        }
+
+        void CalculatePointsClustersParallel() {
+
+        }
+
+        void CalculatePointsClustersParallelFunc(size_t threadID) {
+            std::vector<double> distances(meanCount);
+        }
+
+        void JustIterateParallelFunc(size_t threadID) {
+
+        }
+
+        size_t threadCount = 1;
+
         unsigned int meanCount = 1;
         std::vector<Point> means;
 
