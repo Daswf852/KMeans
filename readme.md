@@ -12,11 +12,11 @@ First step is preparing data.
 
     std::array<SomeDataStruct> OrigDataPoints = {...};
 
-    auto TranslatorFunction = [](const SomeDataStruct &dataPoint) -> Point {
-        return Point({(double)foo, (double)bar, baz});
+    auto TranslatorFunction = [](const SomeDataStruct &dataPoint) -> Point::Point_t {
+        return Point::Point_t{3, {(double)foo, (double)bar, baz}};
     };
 
-    std::vector<Point> TranslatedDataPoints;
+    std::vector<Point::Point_t> TranslatedDataPoints;
 
     TranslatedDataPoints = Point::GeneratePoints(OrigDataPoints, TranslatorFunction);
 ```
