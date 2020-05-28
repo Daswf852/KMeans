@@ -63,7 +63,7 @@ int main(int, char **) {
         FullHDNoise,
         UHDNoise,
         UHDHDRNoise
-    } benchType = FullHDNoise;
+    } benchType = UHDHDRNoise;
 
     size_t pointCount;
     double minimum;
@@ -71,7 +71,7 @@ int main(int, char **) {
     size_t clusters;
     double bVarianceTarget;
 
-    int setAmountOfIterations = 0;
+    int setAmountOfIterations = 50;
 
     switch (benchType) {
         default:
@@ -132,6 +132,7 @@ int main(int, char **) {
 
     std::cout<<"Constructing a KMeans object"<<std::endl;
     KMeans bkm(clusters, benchPoints);
+    bkm.SetThreadCount(5);
     bkm.ResetMeans();
     bkm.RandomiseMeans();
 
@@ -142,11 +143,7 @@ int main(int, char **) {
     int benchSteps = setAmountOfIterations;
     if (setAmountOfIterations) {
         for (;setAmountOfIterations;setAmountOfIterations--) {
-            double variance = bkm.Iterate();
-            std::cout<<variance<<std::endl;
-            for (const Point &p : bkm.GetMeans()) {
-                std::cout<<p<<std::endl;
-            }
+            bkm.JustIterateParallel();
         }
     } else {
         benchSteps = bkm.IterateUntilVariance(bVarianceTarget);

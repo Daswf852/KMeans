@@ -102,7 +102,7 @@ class Point {
                 }*/
                 retVec.push_back(getPointFunction(v));
             };
-            
+
             try {
                 GetDimensions(retVec);
             } catch (DifferentDimensionsException ex) {
@@ -216,16 +216,11 @@ class KMeans {
         //IterateUntilVariance keeps iterating until a variance target is met and returns the amount of iterations done
         int IterateUntilVariance(double targetMinimumVariance) {
             double lastVariance = DBL_MAX;
-            const int checkEvery = 4;
             int iterations = 0;
 
             std::cout<<lastVariance<<std::endl;
             while (lastVariance > targetMinimumVariance) {
-                //if (iterations % checkEvery) {
-                    //JustIterate();
-                //} else {
-                    lastVariance = Iterate();
-                //}
+                lastVariance = Iterate();
                 ++iterations;
                 std::cout<<lastVariance<<std::endl;
             }
@@ -315,12 +310,17 @@ class KMeans {
             return means;
         }
 
+#ifdef _THREADED
+
         void SetThreadCount(size_t threadCount) {
             this->threadCount = threadCount;
         }
 
-        void JustIterateParallel() {
+#endif
 
+        void JustIterateParallel() {
+            CalculateNewMeans();
+            CalculatePointsClustersParallel();
         }
 
     private:
@@ -366,6 +366,8 @@ class KMeans {
             }
         }
 
+#ifdef _THREADED
+
         //NYI
         void CalculateNewMeansParallel() {
         }
@@ -376,18 +378,44 @@ class KMeans {
         }
 
         void CalculatePointsClustersParallel() {
+            std::vector<std::thread> threads(threadCount);
 
+            for (size_t i = 0; i < threadCount; i++) {
+                threads.at(i) = std::thread(&KMeans::CalculatePointsClustersParallelFunc, this, i);
+            }
+
+            for (size_t i = 0; i < threadCount; i++) {
+                threads.at(i).join();
+            }
         }
 
+        //Now was this easy ._.
         void CalculatePointsClustersParallelFunc(size_t threadID) {
             std::vector<double> distances(meanCount);
-        }
+            for (std::vector<Point>::iterator p = points.begin() + threadID; p < points.end(); p += threadCount) {
+                std::vector<double>::iterator distIt = distances.begin();
 
-        void JustIterateParallelFunc(size_t threadID) {
+                for (const Point &m : means) {
+                    *distIt = Point::EuclideanDistance(*p, m);
+                    ++distIt;
+                }
 
+                int closestClusterID = -1;
+                double closestMeanDistance = DBL_MAX;
+                for (size_t i = 0; i < distances.size(); i++) {
+                    if (closestMeanDistance >= distances[i]) {
+                        closestMeanDistance = distances[i];
+                        closestClusterID = i;
+                    }
+                }
+
+                (*p).clusterID = closestClusterID;
+            }
         }
 
         size_t threadCount = 1;
+
+#endif
 
         unsigned int meanCount = 1;
         std::vector<Point> means;
