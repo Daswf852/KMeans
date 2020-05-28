@@ -57,129 +57,119 @@ class CantDeduceDimensionsException : public std::exception {
         }
 };
 
-class Point {
-    public:
+
+namespace Point {
+
+    struct Point_t {
         int clusterID;
         std::vector<double> coordinates;
+    }; 
 
-        Point() : clusterID(0) {};
+    std::ostream &operator<<(std::ostream &stream, const Point::Point_t &point) {
+        stream<<"["<<point.clusterID<<"]: (";
+        bool first = true;
+        for (const double d : point.coordinates) {
+            if (!first) stream<<", ";
+            stream<<d;
+            if (first) first = false;
+        }
+        stream<<')';
+        return stream;
+    }
 
-        Point(size_t dims)
-            : clusterID(0)
-            , coordinates(std::vector<double>(dims)) {};
-
-        Point(std::initializer_list<double> initialiser)
-            : coordinates(initialiser)
-            , clusterID(0) {};
-
-        ~Point() {};
-
-        friend std::ostream &operator<<(std::ostream &stream, const Point &point) {
-            stream<<"["<<point.clusterID<<"]: (";
-            bool first = true;
-            for (const double d : point.coordinates) {
-                if (!first) stream<<", ";
-                stream<<d;
-                if (first) first = false;
-            }
-            stream<<')';
-            return stream;
+    //GetDimensions gets the dimensions of the Points in a given Point vector
+    //Throws CantDeduceDimensionsException if the said vector's size is 0
+    //Throws DifferentDimensionsException if any 2 Points in the vector have different dimensions
+    static int GetDimensions(const std::vector<Point::Point_t> &points) {
+        if (points.size() == 0) throw CantDeduceDimensionsException();
+        
+        int currentDimension = points[0].coordinates.size();
+        for (const Point::Point_t &p : points) {
+            if (currentDimension != p.coordinates.size()) throw DifferentDimensionsException(currentDimension, p.coordinates.size());
         }
 
-        /// Some helpers:
+        return currentDimension;
+    }
 
-        //GeneratePoints generates Points from a vector of Ts
-        //The description on how to generate a Point from a T is given with getPointFunction
-        template <typename T, typename C>
-        static std::vector<Point> GeneratePoints(const C &values, std::function<Point(const T&)> getPointFunction) {
-            if (values.size() <= 0) throw CantDeduceDimensionsException();
+    //GeneratePoints generates Points from a vector of Ts
+    //The description on how to generate a Point from a T is given with getPointFunction
+    template <typename T, typename C>
+    static std::vector<Point::Point_t> GeneratePoints(const C &values, std::function<Point::Point_t(const T&)> getPointFunction) {
+        if (values.size() <= 0) throw CantDeduceDimensionsException();
 
-            std::vector<Point> retVec;
-            for (const T &v : values) {
-                Point temp = getPointFunction(v);
-                /*if (temp.coordinates.size() != expectedDimensions) {
-                    throw DifferentDimensionsException(expectedDimensions, temp.coordinates.size());
-                }*/
-                retVec.push_back(getPointFunction(v));
-            };
+        std::vector<Point::Point_t> retVec;
+        for (const T &v : values) {
+            Point::Point_t temp = getPointFunction(v);
+            /*if (temp.coordinates.size() != expectedDimensions) {
+                throw DifferentDimensionsException(expectedDimensions, temp.coordinates.size());
+            }*/
+            retVec.push_back(getPointFunction(v));
+        };
 
-            try {
-                GetDimensions(retVec);
-            } catch (DifferentDimensionsException ex) {
-                throw ex;
-            } catch (CantDeduceDimensionsException ex) {
-                throw ex;
-            }
-
-            return retVec;
+        try {
+            GetDimensions(retVec);
+        } catch (DifferentDimensionsException ex) {
+            throw ex;
+        } catch (CantDeduceDimensionsException ex) {
+            throw ex;
         }
 
-        //GetDimensions gets the dimensions of the Points in a given Point vector
-        //Throws CantDeduceDimensionsException if the said vector's size is 0
-        //Throws DifferentDimensionsException if any 2 Points in the vector have different dimensions
-        static int GetDimensions(const std::vector<Point> &points) {
-            if (points.size() == 0) throw CantDeduceDimensionsException();
-            
-            int currentDimension = points[0].coordinates.size();
-            for (const Point &p : points) {
-                if (currentDimension != p.coordinates.size()) throw DifferentDimensionsException(currentDimension, p.coordinates.size());
-            }
+        return retVec;
+    }
 
-            return currentDimension;
+    //EuclideanDistance calculates the euclidean distance between 2 points
+    //Throws DifferentDimensionsException if the 2 points have different dimensions
+    //Far slower than ManhattanDistance
+    //Decided to use this over manhattan distance after reading https://pdfs.semanticscholar.org/a630/316f9c98839098747007753a9bb6d05f752e.pdf
+    ///TODO: make distance algorithm optional
+    ///TODO: make user-suppliable distance functions
+    ///Maybe TODO: switch to big numbers
+    static double EuclideanDistance(const Point::Point_t &p0, const Point::Point_t &p1) {
+        size_t p0size = p0.coordinates.size();
+        size_t p1size = p1.coordinates.size();
+        
+        if (p0size != p1size) throw DifferentDimensionsException(p0size, p1size);
+
+        double interiorSum = 0.f; //This can overflow a *lot* with far apart points
+                                    //If an overflow occurs, it throws off the distance and a point's clusterID can be calculated incorrectly which leads to a std::out_of_range since it'll get assigned -1 as clusterID
+
+        for (size_t i = 0; i < p0size; i++) {
+            interiorSum += std::pow(p0.coordinates[i] - p1.coordinates[i], 2);
         }
 
-        //EuclideanDistance calculates the euclidean distance between 2 points
-        //Throws DifferentDimensionsException if the 2 points have different dimensions
-        //Far slower than ManhattanDistance
-        //Decided to use this over manhattan distance after reading https://pdfs.semanticscholar.org/a630/316f9c98839098747007753a9bb6d05f752e.pdf
-        ///TODO: make distance algorithm optional
-        ///TODO: make user-suppliable distance functions
-        ///Maybe TODO: switch to big numbers
-        static double EuclideanDistance(const Point &p0, const Point &p1) {
-            size_t p0size = p0.coordinates.size();
-            size_t p1size = p1.coordinates.size();
-            
-            if (p0size != p1size) throw DifferentDimensionsException(p0size, p1size);
+        return std::sqrt(interiorSum);
+    }
 
-            double interiorSum = 0.f; //This can overflow a *lot* with far apart points
-                                      //If an overflow occurs, it throws off the distance and a point's clusterID can be calculated incorrectly which leads to a std::out_of_range since it'll get assigned -1 as clusterID
+    //ManhattanDistance calculates the manhattan distance between 2 points
+    //Throws DifferentDimensionsException if the 2 points have different dimensions
+    //Is faster than EuclideanDistance
+    //Might overflow, a lot of times over
+    ///Maybe TODO: switch to big numbers
+    static double ManhattanDistance(const Point::Point_t &p0, const Point::Point_t &p1) {
+        size_t p0size = p0.coordinates.size();
+        size_t p1size = p1.coordinates.size();
+        
+        if (p0size != p1size) throw DifferentDimensionsException(p0size, p1size);
+        
+        double distance = 0.f;
 
-            for (size_t i = 0; i < p0size; i++) {
-                interiorSum += std::pow(p0.coordinates[i] - p1.coordinates[i], 2);
-            }
-
-            return std::sqrt(interiorSum);
+        for (size_t i = 0; i < p0size; i++) {
+            distance += std::fabs(p0.coordinates[i] - p1.coordinates[i]);
         }
 
-        //ManhattanDistance calculates the manhattan distance between 2 points
-        //Throws DifferentDimensionsException if the 2 points have different dimensions
-        //Is faster than EuclideanDistance
-        //Might overflow, a lot of times over
-        ///Maybe TODO: switch to big numbers
-        static double ManhattanDistance(const Point &p0, const Point &p1) {
-            size_t p0size = p0.coordinates.size();
-            size_t p1size = p1.coordinates.size();
-            
-            if (p0size != p1size) throw DifferentDimensionsException(p0size, p1size);
-            
-            double distance = 0.f;
+        return distance;
+    }
 
-            for (size_t i = 0; i < p0size; i++) {
-                distance += std::fabs(p0.coordinates[i] - p1.coordinates[i]);
-            }
+    //RunningAverage calculates the running average of many numbers
+    //prevCount contains the amount of numbers processed beforehand
+    //if prevCount is 0, next is returned as-is
+    static double RunningAverage(double prev, double next, unsigned int prevCount) {
+        if (prevCount == 0) return next; //not-so-special case but faster than calculating
+        //else if (prevCount == 1) return (prev+next)/(double)2; //profiling indicates that this made it faster too :> //a larger, controlled test indicates that it does not
+        return (prev * (double)(prevCount) + next) / (double)(prevCount+1);
+    }
+}
 
-            return distance;
-        }
-
-        //RunningAverage calculates the running average of many numbers
-        //prevCount contains the amount of numbers processed beforehand
-        //if prevCount is 0, next is returned as-is
-        static double RunningAverage(double prev, double next, unsigned int prevCount) {
-            if (prevCount == 0) return next; //not-so-special case but faster than calculating
-            //else if (prevCount == 1) return (prev+next)/(double)2; //profiling indicates that this made it faster too :> //a larger, controlled test indicates that it does not
-            return (prev * (double)(prevCount) + next) / (double)(prevCount+1);
-        }
-};
 
 //The class for calculating the cluster means of a given Point vector
 //You can have as many mean counts and dimensions as you want
@@ -187,16 +177,15 @@ class KMeans {
     public:
         //Throws std::out_of_range if meanCount is not nonzero
         //Inherits the throws from Point::GetDimensions
-        KMeans(unsigned int meanCount, std::vector<Point> &points)
+        KMeans(unsigned int meanCount, std::vector<Point::Point_t> &points)
             : points(points)
             , meanCount(meanCount)
             , dimensions(Point::GetDimensions(points)) {
                 if (!meanCount) throw std::out_of_range("Mean count is 0");
 
-                means = std::vector<Point>(meanCount);
+                means = std::vector<Point::Point_t>(meanCount);
                 for (size_t i = 0; i < meanCount; i++) {
-                    means[i] = Point(dimensions);
-                    means[i].clusterID = i;
+                    means[i] = Point::Point_t{i, std::vector<double>(dimensions)};
                 }
 
                 ResetMeans();
@@ -207,7 +196,7 @@ class KMeans {
         ~KMeans() {};
 
         inline void ResetMeans() {
-            for (std::vector<Point>::iterator it = means.begin(); it != means.end(); it++) {
+            for (std::vector<Point::Point_t>::iterator it = means.begin(); it != means.end(); it++) {
                 std::fill((*it).coordinates.begin(), (*it).coordinates.end(), 0.f);
             }
         }
@@ -231,7 +220,7 @@ class KMeans {
         //Iterate iterates the means and clusters and returns how much the means moved on average
         //Recommended function: IterateUntilVariance()
         double Iterate() {
-            std::vector<Point> oldmeans = means;
+            std::vector<Point::Point_t> oldmeans = means;
             JustIterate();
             double averageDistance = 0.f;
 
@@ -254,8 +243,8 @@ class KMeans {
             std::random_device rd;
             std::mt19937 gen(rd());
 
-            Point minimum = GetMinimum();
-            Point maximum = GetMaximum();
+            Point::Point_t minimum = GetMinimum();
+            Point::Point_t maximum = GetMaximum();
 
             for (size_t i = 0; i < meanCount; i++) {
                 for (size_t j = 0; j < dimensions; j++) {
@@ -267,14 +256,14 @@ class KMeans {
         }
 
         //GetMinimum returns the geometric minimum of the Points of a KMeans object
-        Point GetMinimum() {
-            Point minimum;
+        Point::Point_t GetMinimum() {
+            Point::Point_t minimum;
 
             for (int i = 0; i < dimensions; i++) {
                 minimum.coordinates.push_back(DBL_MAX);
             }
 
-            for (const Point &p : points) {
+            for (const Point::Point_t &p : points) {
                 for (int i = 0; i < dimensions; i++) {
                     if (minimum.coordinates[i] > p.coordinates[i]) {
                         minimum.coordinates[i] = p.coordinates[i];
@@ -286,14 +275,14 @@ class KMeans {
         }
 
         //GetMinimum returns the geometric maximum of the Points of a KMeans object
-        Point GetMaximum() {
-            Point maximum;
+        Point::Point_t GetMaximum() {
+            Point::Point_t maximum;
 
             for (int i = 0; i < dimensions; i++) {
                 maximum.coordinates.push_back(DBL_MIN);
             }
 
-            for (const Point &p : points) {
+            for (const Point::Point_t &p : points) {
                 for (int i = 0; i < dimensions; i++) {
                     if (maximum.coordinates[i] < p.coordinates[i]) {
                         maximum.coordinates[i] = p.coordinates[i];
@@ -306,7 +295,7 @@ class KMeans {
         }
 
         //GetMeans returns a const ref to the current calculated means
-        const std::vector<Point> &GetMeans() {
+        const std::vector<Point::Point_t> &GetMeans() {
             return means;
         }
 
@@ -330,7 +319,7 @@ class KMeans {
             std::vector<int> runningCounts(meanCount);
             std::fill(runningCounts.begin(), runningCounts.end(), 0);
 
-            for (const Point &p : points) {
+            for (const Point::Point_t &p : points) {
                 if (p.coordinates.size() != dimensions) throw DifferentDimensionsException(dimensions, p.coordinates.size());
                 if (p.clusterID >= meanCount) throw std::out_of_range("p.clusterID >= meanCount: "+std::to_string(p.clusterID)+", "+std::to_string(meanCount));
 
@@ -345,10 +334,10 @@ class KMeans {
         //CalculatePointsClusters calculates the ClusterID values of the object's Points based on the means
         void CalculatePointsClusters() {
             std::vector<double> distances(meanCount);
-            for (std::vector<Point>::iterator p = points.begin(); p != points.end(); p++) {
+            for (std::vector<Point::Point_t>::iterator p = points.begin(); p != points.end(); p++) {
                 std::vector<double>::iterator distIt = distances.begin();
 
-                for (const Point &m : means) {
+                for (const Point::Point_t &m : means) {
                     *distIt = Point::EuclideanDistance(*p, m);
                     ++distIt;
                 }
@@ -392,10 +381,10 @@ class KMeans {
         //Now was this easy ._.
         void CalculatePointsClustersParallelFunc(size_t threadID) {
             std::vector<double> distances(meanCount);
-            for (std::vector<Point>::iterator p = points.begin() + threadID; p < points.end(); p += threadCount) {
+            for (std::vector<Point::Point_t>::iterator p = points.begin() + threadID; p < points.end(); p += threadCount) {
                 std::vector<double>::iterator distIt = distances.begin();
 
-                for (const Point &m : means) {
+                for (const Point::Point_t &m : means) {
                     *distIt = Point::EuclideanDistance(*p, m);
                     ++distIt;
                 }
@@ -418,9 +407,9 @@ class KMeans {
 #endif
 
         unsigned int meanCount = 1;
-        std::vector<Point> means;
+        std::vector<Point::Point_t> means;
 
-        std::vector<Point> &points;
+        std::vector<Point::Point_t> &points;
         
         int dimensions = 0;
 };
