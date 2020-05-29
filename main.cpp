@@ -1,16 +1,18 @@
 #include <iostream>
 
-#include <opencv4/opencv2/core.hpp>
-#include <opencv4/opencv2/imgcodecs.hpp>
-#include <opencv4/opencv2/highgui.hpp>
-
 #include "lib/kmeans.hpp"
 
 int main(int, char **) {
+    /*std::vector<Point::APoint_t> points;
+    for (int i = 0; i < 64; i++) {
+        Point::APoint_t pt = Point::NewPoint(0, 8);
+        points.push_back(pt);
+    }
+    Point::FreePoints(points);*/
 
-    //GigaChad practical example:
-
-    //cv::Mat image = cv::imread("test.png");
-
+    Point::APoint_t pt = Point::NewPoint(0, 8);
+    std::cout<<pt.coordinates<<std::endl;
+    std::cout<<pt.dimensions<<std::endl;
+    Point::FreePoint(pt);
     return 0;
 }

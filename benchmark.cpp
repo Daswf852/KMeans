@@ -4,7 +4,8 @@
 
 enum EBenchType {
     FullHDNoise,
-    UHDNoise
+    UHDNoise,
+    Big
 };
 
 struct RunType {
@@ -14,24 +15,34 @@ struct RunType {
     size_t clusters;
     double bVarianceTarget;
     int setAmountOfIterations;
+    bool MT;
 };
 
 int main(int argc, char **argv) {
     const std::unordered_map<std::string, EBenchType> presets = {
         {"FullHDNoise", FullHDNoise},
-        {"UHDNoise", UHDNoise}
+        {"UHDNoise", UHDNoise},
+        {"Big", Big}
     };
 
     const std::unordered_map<EBenchType, RunType> presetInfo = {
         {FullHDNoise, {
             1920*1080, 0.f, 255.f,
             6,
-            3.f, 0
+            3.f, 0,
+            false
         }},
         {UHDNoise, {
             3840*2160, 0.f, 255.f,
             6,
-            3.f, 0
+            3.f, 0,
+            false
+        }},
+        {Big, {
+            3840*2160, 0.f, 255.f,
+            6,
+            0.1f, 50,
+            false
         }}
     };
 
@@ -77,8 +88,9 @@ int main(int argc, char **argv) {
         };
     }
 
-    std::vector<Point::Point_t> benchPoints = Point::GeneratePoints<color>(colorArray, [](const color &b) -> Point::Point_t {
-        return Point::Point_t{0, {(double)b.r, (double)b.g, (double)b.b}};
+    std::vector<Point::APoint_t> benchPoints;
+    Point::GeneratePoints<color>(benchPoints, colorArray, [](const color &b) -> Point::APoint_t {
+        return Point::NewPoint(0, {(double)b.r, (double)b.g, (double)b.b});
     });
 
     colorArray = std::vector<color>(1);
@@ -105,4 +117,9 @@ int main(int argc, char **argv) {
     for (auto m : bkm.GetMeans()) {
         std::cout<<m<<std::endl;
     }
+
+    Point::FreePoints(benchPoints);
+
+
+    return 0;
 }
