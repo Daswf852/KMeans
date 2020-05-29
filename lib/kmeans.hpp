@@ -163,11 +163,6 @@ namespace Point {
 
         dst = std::vector<Point::APoint_t>(values.size());
 
-        /*for (const T &v : values) {
-            Point::APoint_t temp = getPointFunction(v);
-            dst.push_back(getPointFunction(v));
-        };*/
-
         for (size_t i = 0; i < values.size(); i++) {
             dst[i] = getPointFunction(values[i]);
         }
@@ -264,13 +259,13 @@ class KMeans {
 
 
         //IterateUntilVariance keeps iterating until a variance target is met and returns the amount of iterations done
-        int IterateUntilVariance(double targetMinimumVariance) {
+        int IterateUntilVariance(double targetMinimumVariance, bool parallel = false) {
             double lastVariance = DBL_MAX;
             int iterations = 0;
 
             std::cout<<lastVariance<<std::endl;
             while (lastVariance > targetMinimumVariance) {
-                lastVariance = Iterate();
+                lastVariance = Iterate(parallel);
                 ++iterations;
                 std::cout<<lastVariance<<std::endl;
             }
@@ -280,11 +275,11 @@ class KMeans {
 
         //Iterate iterates the means and clusters and returns how much the means moved on average
         //Recommended function: IterateUntilVariance()
-        double Iterate() {
+        double Iterate(bool parallel = false) {
             std::vector<Point::APoint_t> oldmeans;
             Point::CopyPoints(oldmeans, means);
 
-            JustIterate();
+            JustIterate(parallel);
 
             double averageDistance = 0.f;
 
@@ -298,10 +293,14 @@ class KMeans {
         }
 
         //JustIterate iterates the means and clusters but nothing more
-        //Useful for speed if you want to iterate for a set number of times
-        void JustIterate() {
-            CalculateNewMeans();
-            CalculatePointsClusters();
+        void JustIterate(bool parallel = false) {
+            if (parallel) {
+                CalculateNewMeans();
+                CalculatePointsClustersParallel();
+            } else {
+                CalculateNewMeans();
+                CalculatePointsClusters();
+            }
         }
 
         //GetMinimum returns the geometric minimum of the Points of a KMeans object
@@ -375,11 +374,6 @@ class KMeans {
 
 #endif
 
-        void JustIterateParallel() {
-            CalculateNewMeans();
-            CalculatePointsClustersParallel();
-        }
-
     private:
         //CalculateNewMeans calculates new means based on clusterIDs of the Points
         void CalculateNewMeans() {
@@ -400,9 +394,9 @@ class KMeans {
         }
 
         //CalculatePointsClusters calculates the ClusterID values of the object's Points based on the means
-        void CalculatePointsClusters() {
+        void CalculatePointsClusters(bool parallel = false, size_t threadID = 0) {
             std::vector<double> distances(meanCount);
-            for (std::vector<Point::APoint_t>::iterator p = points.begin(); p != points.end(); p++) {
+            for (std::vector<Point::APoint_t>::iterator p = points.begin() + ((parallel)?threadID:0); p != points.end(); p += ((parallel)?threadCount:1)) {
                 std::vector<double>::iterator distIt = distances.begin();
 
                 for (const Point::APoint_t &m : means) {
@@ -425,48 +419,15 @@ class KMeans {
 
 #ifdef _THREADED
 
-        //NYI
-        void CalculateNewMeansParallel() {
-        }
-
-        //NYI
-        void CalculateNewMeansParallelFunc(size_t threadID) {
-
-        }
-
         void CalculatePointsClustersParallel() {
             std::vector<std::thread> threads(threadCount);
 
             for (size_t i = 0; i < threadCount; i++) {
-                threads.at(i) = std::thread(&KMeans::CalculatePointsClustersParallelFunc, this, i);
+                threads.at(i) = std::thread(&KMeans::CalculatePointsClusters, this, true, i);
             }
 
             for (size_t i = 0; i < threadCount; i++) {
                 threads.at(i).join();
-            }
-        }
-
-        //Now was this easy ._.
-        void CalculatePointsClustersParallelFunc(size_t threadID) { //, size_t _nThreads = this->threadCount
-            std::vector<double> distances(meanCount);
-            for (std::vector<Point::APoint_t>::iterator p = points.begin() + threadID; p < points.end(); p += threadCount) {
-                std::vector<double>::iterator distIt = distances.begin();
-
-                for (const Point::APoint_t &m : means) {
-                    *distIt = Point::EuclideanDistance(*p, m);
-                    ++distIt;
-                }
-
-                int closestClusterID = -1;
-                double closestMeanDistance = DBL_MAX;
-                for (size_t i = 0; i < distances.size(); i++) {
-                    if (closestMeanDistance >= distances[i]) {
-                        closestMeanDistance = distances[i];
-                        closestClusterID = i;
-                    }
-                }
-
-                (*p).clusterID = closestClusterID;
             }
         }
 

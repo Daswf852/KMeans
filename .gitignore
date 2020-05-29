@@ -2,3 +2,4 @@
 *.out
 perf.data*
 massif*
+build

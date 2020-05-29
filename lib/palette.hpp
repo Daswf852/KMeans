@@ -10,3 +10,55 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 
 #pragma once
 
+#include <cmath>
+#include <vector>
+
+#include <opencv4/opencv2/opencv.hpp>
+
+#include "kmeans.hpp"
+
+namespace PaletteExtractor {
+    void GetPointsFromMat(std::vector<Point::APoint_t> &dst, const cv::Mat &image) {
+        cv::Mat downscaled;
+
+        float ratio = 0.f;
+        size_t target = 1280*720;
+
+        if (image.rows * image.cols > target) {
+            ratio = std::sqrt((target)/(image.rows * image.cols));
+        } else {
+            ratio = 1.0f;
+        }
+
+            cv::resize(image, downscaled, cv::Size(image.cols, image.rows), ratio, ratio, cv::INTER_AREA);
+
+        dst = std::vector<Point::APoint_t>(downscaled.rows * downscaled.cols);
+        for (size_t i = 0; i < downscaled.rows; i++) {
+            for (size_t j = 0; j < downscaled.cols; j++) {
+                cv::Vec3b color = downscaled.at<cv::Vec3b>(i, j);
+                dst.at(j+(i*downscaled.cols)) = Point::NewPoint(0, {(double)color.val[2], (double)color.val[1], (double)color.val[0]});
+            }
+        }
+    }
+
+    std::vector<Point::APoint_t> GetPalette(unsigned int numColors, std::vector<Point::APoint_t> &points) {
+        if (numColors == 0) numColors = 1;
+        KMeans *km = new KMeans(numColors, points);
+        km->IterateUntilVariance(1.f);
+        std::vector<Point::APoint_t> retPoints(numColors);
+        for (size_t i = 0; i < numColors; i++) {
+            retPoints.at(i) = Point::NewPoint(km->GetMeans().at(i));
+        }
+        delete km;
+        return retPoints;
+    }
+
+    std::vector<Point::APoint_t> GetPalette(unsigned int numColors, std::string path) {
+        cv::Mat image = cv::imread(path);
+        std::vector<Point::APoint_t> dataPoints;
+        PaletteExtractor::GetPointsFromMat(dataPoints, image);
+        std::vector<Point::APoint_t> retVec = PaletteExtractor::GetPalette(numColors, dataPoints);
+        Point::FreePoints(dataPoints);
+        return retVec;
+    }
+}

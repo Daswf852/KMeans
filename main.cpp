@@ -1,18 +1,36 @@
 #include <iostream>
 
+#include <opencv4/opencv2/opencv.hpp>
+
 #include "lib/kmeans.hpp"
+#include "lib/palette.hpp"
 
-int main(int, char **) {
-    /*std::vector<Point::APoint_t> points;
-    for (int i = 0; i < 64; i++) {
-        Point::APoint_t pt = Point::NewPoint(0, 8);
-        points.push_back(pt);
+int main(int argc, char **argv) {
+    std::vector<Point::APoint_t> palette = PaletteExtractor::GetPalette(6, argv[1]);
+
+    int rectHeight = 128;
+    int rectWidth = 32;
+    int initialX = 0;
+    int initialY = 0;
+
+    cv::Mat drawMat(rectHeight, rectWidth * 6, CV_8UC3, cv::Scalar::all(0));
+
+
+    std::string winName = "Display";
+    cv::namedWindow(winName);
+
+    for (size_t i = 0; i < palette.size(); i++) {
+        const Point::APoint_t &pt = palette.at(i);
+        cv::Rect rect(initialX + (rectWidth * i), initialY, rectWidth, rectHeight);
+        cv::rectangle(drawMat, rect,
+            cv::Scalar(
+                (unsigned char)pt.coordinates[0], 
+                (unsigned char)pt.coordinates[1], 
+                (unsigned char)pt.coordinates[2]), cv::FILLED);
     }
-    Point::FreePoints(points);*/
+    cv::imshow(winName, drawMat);
+    cv::waitKey(0);
 
-    Point::APoint_t pt = Point::NewPoint(0, 8);
-    std::cout<<pt.coordinates<<std::endl;
-    std::cout<<pt.dimensions<<std::endl;
-    Point::FreePoint(pt);
+    cv::destroyAllWindows();
     return 0;
 }

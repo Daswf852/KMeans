@@ -108,10 +108,10 @@ int main(int argc, char **argv) {
     int benchSteps = runType.setAmountOfIterations;
     if (runType.setAmountOfIterations) {
         for (;runType.setAmountOfIterations;runType.setAmountOfIterations--) {
-            bkm.JustIterateParallel();
+            bkm.JustIterate(runType.MT);
         }
     } else {
-        benchSteps = bkm.IterateUntilVariance(runType.bVarianceTarget);
+        benchSteps = bkm.IterateUntilVariance(runType.bVarianceTarget, runType.MT);
     }
     std::cout<<"Did "<<benchSteps<<" iterations."<<std::endl;
     for (auto m : bkm.GetMeans()) {
