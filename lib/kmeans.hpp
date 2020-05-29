@@ -12,6 +12,7 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 
 #define _THREADED
 
+#include <cassert>
 #include <cfloat>
 #include <cmath>
 #include <functional>
@@ -262,12 +263,9 @@ class KMeans {
         int IterateUntilVariance(double targetMinimumVariance, bool parallel = false) {
             double lastVariance = DBL_MAX;
             int iterations = 0;
-
-            std::cout<<lastVariance<<std::endl;
             while (lastVariance > targetMinimumVariance) {
                 lastVariance = Iterate(parallel);
                 ++iterations;
-                std::cout<<lastVariance<<std::endl;
             }
 
             return iterations;
@@ -295,8 +293,13 @@ class KMeans {
         //JustIterate iterates the means and clusters but nothing more
         void JustIterate(bool parallel = false) {
             if (parallel) {
+#ifdef _THREADED
                 CalculateNewMeans();
                 CalculatePointsClustersParallel();
+#else
+                CalculateNewMeans();
+                CalculatePointsClusters();
+#endif
             } else {
                 CalculateNewMeans();
                 CalculatePointsClusters();
@@ -366,13 +369,9 @@ class KMeans {
             return means;
         }
 
-#ifdef _THREADED
-
         void SetThreadCount(size_t threadCount) {
             this->threadCount = threadCount;
         }
-
-#endif
 
     private:
         //CalculateNewMeans calculates new means based on clusterIDs of the Points
@@ -396,7 +395,7 @@ class KMeans {
         //CalculatePointsClusters calculates the ClusterID values of the object's Points based on the means
         void CalculatePointsClusters(bool parallel = false, size_t threadID = 0) {
             std::vector<double> distances(meanCount);
-            for (std::vector<Point::APoint_t>::iterator p = points.begin() + ((parallel)?threadID:0); p != points.end(); p += ((parallel)?threadCount:1)) {
+            for (std::vector<Point::APoint_t>::iterator p = points.begin() + ((parallel)?threadID:0); p < points.end(); p += ((parallel)?threadCount:1)) {
                 std::vector<double>::iterator distIt = distances.begin();
 
                 for (const Point::APoint_t &m : means) {
@@ -418,7 +417,6 @@ class KMeans {
         }
 
 #ifdef _THREADED
-
         void CalculatePointsClustersParallel() {
             std::vector<std::thread> threads(threadCount);
 
@@ -430,10 +428,9 @@ class KMeans {
                 threads.at(i).join();
             }
         }
-
-        size_t threadCount = 1;
-
 #endif
+
+        size_t threadCount = 1; //this can stay outside, we just want to filter out <thread> stuffs
 
         unsigned int meanCount = 1;
         std::vector<Point::APoint_t> means;

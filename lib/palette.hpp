@@ -13,6 +13,10 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 #include <cmath>
 #include <vector>
 
+#ifdef _THREADED
+#include <thread>
+#endif
+
 #include <opencv4/opencv2/opencv.hpp>
 
 #include "kmeans.hpp"
@@ -44,7 +48,14 @@ namespace PaletteExtractor {
     std::vector<Point::APoint_t> GetPalette(unsigned int numColors, std::vector<Point::APoint_t> &points) {
         if (numColors == 0) numColors = 1;
         KMeans *km = new KMeans(numColors, points);
-        km->IterateUntilVariance(1.f);
+
+#ifdef _THREADED
+        unsigned numThreads = std::thread::hardware_concurrency();
+#endif
+        if (!numThreads) numThreads = 1;
+        km->SetThreadCount(numThreads);
+
+        km->IterateUntilVariance(1.f, true);
         std::vector<Point::APoint_t> retPoints(numColors);
         for (size_t i = 0; i < numColors; i++) {
             retPoints.at(i) = Point::NewPoint(km->GetMeans().at(i));
