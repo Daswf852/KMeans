@@ -2,8 +2,8 @@
 
 #include <opencv4/opencv2/opencv.hpp>
 
-#include "lib/kmeans.hpp"
-#include "lib/palette.hpp"
+#include "kmeans.hpp"
+#include "palette.hpp"
 
 int main(int argc, char **argv) {
     std::vector<Point::APoint_t> palette = PaletteExtractor::GetPalette(6, argv[1]);

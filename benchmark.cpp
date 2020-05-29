@@ -1,6 +1,6 @@
 #include <iostream>
 
-#include "lib/kmeans.hpp"
+#include "kmeans.hpp"
 
 enum EBenchType {
     FullHDNoise,
@@ -30,19 +30,19 @@ int main(int argc, char **argv) {
             1920*1080, 0.f, 255.f,
             6,
             3.f, 0,
-            false
+            true
         }},
         {UHDNoise, {
             3840*2160, 0.f, 255.f,
             6,
             3.f, 0,
-            false
+            true
         }},
         {Big, {
             3840*2160, 0.f, 255.f,
             6,
             0.1f, 50,
-            false
+            true
         }}
     };
 

@@ -3,7 +3,6 @@ cmake_minimum_required(VERSION 3.16)
 include_directories(
     /usr/include
     /usr/include/opencv4
-    lib/
 )
 
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -ggdb")
