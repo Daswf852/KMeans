@@ -395,11 +395,12 @@ class KMeans {
         //CalculatePointsClusters calculates the ClusterID values of the object's Points based on the means
         void CalculatePointsClusters(bool parallel = false, size_t threadID = 0) {
             std::vector<double> distances(meanCount);
-            for (std::vector<Point::APoint_t>::iterator p = points.begin() + ((parallel)?threadID:0); p < points.end(); p += ((parallel)?threadCount:1)) {
+            size_t workload = (points.size()/threadCount);
+            for (size_t i = ((parallel)?(threadID*workload):0); i < ((parallel)?workload:points.size()); i++) {
                 std::vector<double>::iterator distIt = distances.begin();
 
                 for (const Point::APoint_t &m : means) {
-                    *distIt = Point::EuclideanDistance(*p, m);
+                    *distIt = Point::EuclideanDistance(points[i], m);
                     ++distIt;
                 }
 
@@ -412,7 +413,7 @@ class KMeans {
                     }
                 }
 
-                (*p).clusterID = closestClusterID;
+                points[i].clusterID = closestClusterID;
             }
         }
 
